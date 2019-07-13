@@ -18,3 +18,25 @@ test('single small array add', function (t) {
     })(i)
   })
 })
+
+test('multi-slot small array add', function (t) {
+  t.plan(99)
+  var rset = new RSet(new TinyBox(ram()))
+  var set = [50,100,80000,90000,140000,150000,200000]
+  set.forEach(x => rset.add(x))
+  var checks = []
+  set.forEach(function (x) {
+    for (var i = -3; i <= +3; i++) {
+      checks.push(x+i)
+    }
+  })
+  rset.flush(function (err) {
+    t.ifError(err)
+    checks.forEach(function (n) {
+      rset.has(n, function (err, ex) {
+        t.ifError(err)
+        t.equal(ex, set.includes(n), 'has '+n+': '+set.includes(n))
+      })
+    })
+  })
+})
