@@ -12,12 +12,12 @@ function Roaring (db) {
 }
 
 Roaring.prototype.add = function (x) {
-  var i = x >> 16
-  var j = x & 0xffff
-  if (!this._inserts.hasOwnProperty(i)) {
-    this._inserts[i] = [j]
+  var xh = x >> 16
+  var xl = x & 0xffff
+  if (!this._inserts.hasOwnProperty(xh)) {
+    this._inserts[xh] = [xl]
   } else {
-    this._inserts[i].push(j)
+    this._inserts[xh].push(xl)
   }
 }
 
@@ -25,14 +25,13 @@ Roaring.prototype.delete = function (x) {
 }
 
 Roaring.prototype.has = function (x, cb) {
-  var i = x >> 16
+  var xh = x >> 16
   var xl = x & 0xffff
-  this._db.get(String(i), function (err, node) {
+  this._db.get(String(xh), function (err, node) {
     if (err) return cb(err)
     if (!node) return cb(null, false)
     var buf = node.value
-    if (buf[0] === ARRAY) {
-      // binary search
+    if (buf[0] === ARRAY) { // binary search
       var len = (buf.length-1)/2
       var start = 0, end = len, pk = -1
       while (true) {
@@ -48,7 +47,7 @@ Roaring.prototype.has = function (x, cb) {
         }
       }
     } else if (buf[0] === BITFIELD) {
-      cb(null, (buf[1+Math.floor(j/8)] >> (j%8)) === 1)
+      cb(null, ((buf[1+Math.floor(xl/8)] >> (xl%8)) & 1) === 1)
     } else {
       console.log('TODO: run')
     }
@@ -86,16 +85,16 @@ Roaring.prototype.flush = function (cb) {
       for (var j = 0; j < set.length; j++) {
         buf.writeUInt16BE(set[j],1+j*2)
       }
-      this._db.put(String(i), buf)
+      this._db.put(String(ikeys[i]), buf)
     } else { // bitfield
-      var buf = Buffer.alloc(1+Math.ceil(set.length/8))
+      var buf = Buffer.alloc(8193)
       buf[0] = BITFIELD
       for (var j = 0; j < set.length; j++) {
         var x = set[j]
-        var xi = Math.floor(x/8)
-        buf[xi] = buf[xi] & (1<<(x%8))
+        var xi = 1+Math.floor(x/8)
+        buf[xi] = buf[xi] | (1<<(x%8))
       }
-      this._db.put(String(i), buf)
+      this._db.put(String(ikeys[i]), buf)
     }
   }
   this._db.flush(cb)
