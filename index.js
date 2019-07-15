@@ -112,18 +112,15 @@ Roaring.prototype._merge = function (key, set, cb) {
       cb()
     } else if (node.value[0] === ARRAY
     && (node.value.length-1)/2 + set.length < 4096) { // array -> array
-      console.log('!!! array -> array')
       expandSetWithArrayData(set, node.value)
       set.sort(cmp)
       self._db.put(key, buildSet(set))
       cb()
     } else if (node.value[0] === ARRAY) { // array -> bitfield
-      console.log('!!! array -> bitfield')
       expandSetWithArrayData(set, node.value)
       self._db.put(key, buildBitfield(set))
       cb()
     } else if (node.value[0] === BITFIELD) { // bitfield -> bitfield
-      console.log('!!! bitfield -> bitfield')
       writeIntoBitfieldData(set, node.value)
       self._db.put(key, node.value)
       cb()

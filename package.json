@@ -3,5 +3,8 @@
     "random-access-memory": "^3.1.1",
     "tinybox": "~0.0.0",
     "tape": "^4.11.0"
+  },
+  "scripts": {
+    "test": "tape test/*.js"
   }
 }
