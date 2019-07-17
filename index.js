@@ -1,13 +1,14 @@
 var ARRAY = 0, BITFIELD = 1, RUN = 2
 var count = require('./lib/count.js')
+var TinyBox = require('tinybox')
 
 module.exports = Roaring
 
-function Roaring (db) {
-  if (!(this instanceof Roaring)) return new Roaring(db)
+function Roaring (storage) {
+  if (!(this instanceof Roaring)) return new Roaring(storage)
+  this._db = new TinyBox(storage)
   this._inserts = {}
   this._deletes = {}
-  this._db = db
 }
 
 Roaring.prototype.add = function (x) {
@@ -28,7 +29,7 @@ Roaring.prototype.has = function (x, cb) {
   var xl = x & 0xffff
   this._db.get(String(xh), function (err, node) {
     if (err) return cb(err)
-    if (!node) return cb(null, false)
+    if (!node || node.value.length === 0) return cb(null, false)
     var buf = node.value
     if (buf[0] === ARRAY) { // binary search
       var len = (buf.length-1)/2
@@ -47,8 +48,26 @@ Roaring.prototype.has = function (x, cb) {
       }
     } else if (buf[0] === BITFIELD) {
       cb(null, ((buf[1+Math.floor(xl/8)] >> (xl%8)) & 1) === 1)
+    } else if (buf[0] === RUN) { // binary search on ranges
+      var len = (buf.length-1)/4
+      var start = 0, end = len, pk = -1
+      while (true) {
+        var k = Math.floor((start+end)/2)
+        var xstart = buf.readUInt16BE(1+k*4)
+        var xend = buf.readUInt16BE(3+k*4)
+        if (xl >= xstart && xl < xend) return cb(null, true)
+        if (pk === k) return cb(null, false)
+        pk = k
+        if (xl < xstart) {
+          end = k
+        } else if (xl >= xend) {
+          start = k
+        } else {
+          return cb(new Error('unexpected run range state'))
+        }
+      }
     } else {
-      console.log('TODO: run')
+      cb(new Error('unexpected field type: ' + buf[0]))
     }
   })
 }
@@ -102,18 +121,29 @@ Roaring.prototype._merge = function (key, set, cb) {
   self._db.get(key, function (err, node) {
     if (err) {
       cb(err)
-    } else if (!node && set.length < 4096) { // array
+    } else if (!node && set.length < 4096) { // array or run
       set.sort(cmp)
-      self._db.put(key, buildSet(set))
+      var nRuns = count.setRuns(set)
+      if (nRuns*4 < set.length*2) {
+        self._db.put(key, buildRun(set, nRuns))
+      } else {
+        self._db.put(key, buildArray(set))
+      }
       cb()
-    } else if (!node) { // bitfield
-      self._db.put(key, buildBitfield(set))
+    } else if (!node) { // bitfield or run
+      set.sort(cmp)
+      var nRuns = count.setRuns(set)
+      if (nRuns*4 < set.length*2) {
+        self._db.put(key, buildRun(set, nRuns))
+      } else {
+        self._db.put(key, buildBitfield(set))
+      }
       cb()
     } else if (node.value[0] === ARRAY
     && (node.value.length-1)/2 + set.length < 4096) { // array -> array
       expandSetWithArrayData(set, node.value)
       set.sort(cmp)
-      self._db.put(key, buildSet(set))
+      self._db.put(key, buildArray(set))
       cb()
     } else if (node.value[0] === ARRAY) { // array -> bitfield
       expandSetWithArrayData(set, node.value)
@@ -123,13 +153,19 @@ Roaring.prototype._merge = function (key, set, cb) {
       writeIntoBitfieldData(set, node.value)
       self._db.put(key, node.value)
       cb()
+    } else if (node.value[0] === RUN) { // run -> run
+      set = set.concat(parseRuns(node.value))
+      set.sort(cmp)
+      var nRuns = count.setRuns(set)
+      self._db.put(key, buildRun(set, nRuns))
+      cb()
     }
   })
 }
 
 function cmp (a, b) { return a < b ? -1 : +1 }
 
-function buildSet (set) {
+function buildArray (set) { // set assumed to be sorted
   var buf = Buffer.alloc(1 + set.length*2)
   buf[0] = ARRAY
   for (var j = 0; j < set.length; j++) {
@@ -142,6 +178,27 @@ function buildBitfield (set) {
   var buf = Buffer.alloc(8193)
   buf[0] = BITFIELD
   writeIntoBitfieldData(set, buf)
+  return buf
+}
+
+function buildRun (set, nRuns) { // set assumed to be sorted
+  var buf = Buffer.alloc(1+4*nRuns)
+  buf[0] = RUN
+  var offset = 1
+  var start = set[0], end = 0
+  for (var i = 1; i < set.length; i++) {
+    if (set[i] !== set[i-1]+1) {
+      end = set[i-1]+1
+      buf.writeUInt16BE(start, offset+0)
+      buf.writeUInt16BE(end, offset+2)
+      start = set[i]
+      offset += 4
+    }
+  }
+  end = set[set.length-1]+1
+  buf.writeUInt16BE(start, offset+0)
+  buf.writeUInt16BE(end, offset+2)
+  offset += 4
   return buf
 }
 
@@ -159,21 +216,12 @@ function writeIntoBitfieldData (set, buf) {
   }
 }
 
-/*
-function msb (x) { return 31 - Math.clz32(x) }
-function lsb (x) { return msb((x-1)^x) }
-
-function set (field, i, v) {
-  var m = Math.floor(i/w)
-  while (field.length < m) field.push(0)
-  if (v) {
-    field[m] = field[m] | (1<<(i%w))
-  } else {
-    field[m] = field[m] & (wupper-(1<<(i%w)))
+function parseRuns (buf) {
+  var set = []
+  for (var i = 1; i < buf.length; i+=4) {
+    var start = buf.readUInt16BE(i+0)
+    var end = buf.readUInt16BE(i+2)
+    for (var j = start; j < end; j++) set.push(j)
   }
+  return set
 }
-
-function ceilLg (x) {
-  return x <= 1 ? 0 : 32-Math.clz32(x-1)
-}
-*/

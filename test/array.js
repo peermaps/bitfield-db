@@ -1,11 +1,10 @@
 var RSet = require('../')
 var ram = require('random-access-memory')
-var TinyBox = require('tinybox')
 var test = require('tape')
 
 test('single small array add', function (t) {
   t.plan(101)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = [5,10,15,20,23,24,26,27]
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -21,7 +20,7 @@ test('single small array add', function (t) {
 
 test('multi-slot small array add', function (t) {
   t.plan(99)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = [50,100,80000,90000,140000,150000,200000]
   set.forEach(x => rset.add(x))
   var checks = []

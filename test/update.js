@@ -1,11 +1,10 @@
 var RSet = require('../')
 var ram = require('random-access-memory')
-var TinyBox = require('tinybox')
 var test = require('tape')
 
 test('update: array to array', function (t) {
   t.plan(402)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = new Set([5,10,15,20,23,24,26,27])
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -40,7 +39,7 @@ test('update: array to array', function (t) {
 
 test('update: array to bitfield', function (t) {
   t.plan((10011+50)*2+2)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = new Set([5,10,15,20,23,24,26,27])
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -74,7 +73,7 @@ test('update: array to bitfield', function (t) {
 
 test('update: bitfield to bitfield', function (t) {
   t.plan((10021+40001)*2+2)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = new Set()
   for (var i = 20000; i < 35000; i+=3) {
     set.add(i)

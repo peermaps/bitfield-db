@@ -1,11 +1,10 @@
 var RSet = require('../')
 var ram = require('random-access-memory')
-var TinyBox = require('tinybox')
 var test = require('tape')
 
 test('single bitfield', function (t) {
   t.plan(2**16*2+1)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = new Set
   for (var i = 0; i < 2**16; i+=2) {
     set.add(i)
@@ -25,7 +24,7 @@ test('single bitfield', function (t) {
 test('several bitfields', function (t) {
   var offsets = [5000,150000,600000,4500000,6000000]
   t.plan(10021*2*offsets.length+1)
-  var rset = new RSet(new TinyBox(ram()))
+  var rset = new RSet(ram())
   var set = new Set
   offsets.forEach(offset => {
     for (var i = 0; i < 10000; i+=2) {
