@@ -1,6 +1,5 @@
-const ARRAY = 0
-const BITFIELD = 1
-const RUN = 2
+var ARRAY = 0, BITFIELD = 1, RUN = 2
+var count = require('./lib/count.js')
 
 module.exports = Roaring
 

@@ -1,7 +1,7 @@
-const RSet = require('../')
-const ram = require('random-access-memory')
-const TinyBox = require('tinybox')
-const test = require('tape')
+var RSet = require('../')
+var ram = require('random-access-memory')
+var TinyBox = require('tinybox')
+var test = require('tape')
 
 test('update: array to array', function (t) {
   t.plan(402)
