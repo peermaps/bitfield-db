@@ -1,12 +1,12 @@
 var test = require('tape')
-var cpath = require('../lib/cpath.js')
+var CIndex = require('../lib/cindex.js')
 
 test('cardinality indexes', function (t) {
-  var p4 = cpath(4)
-  t.deepEqual(p4(62), [62,15,3,0])
+  var ci4 = new CIndex(4)
+  t.deepEqual(ci4.path(62), [62,15,3,0])
   var graph = buildGraph(4, 6)
   for (var i = 0; i < 1000; i++) {
-    t.deepEqual(p4(i), traceGraph(graph,i))
+    t.deepEqual(ci4.path(i), traceGraph(graph,i))
   }
   t.end()
 })
