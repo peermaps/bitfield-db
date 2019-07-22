@@ -11,3 +11,6 @@ based on [roaring+run][] and [fenwick trees][]
 
 in development
 
+# license
+
+[license zero parity](https://licensezero.com/licenses/parity)
