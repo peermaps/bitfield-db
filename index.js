@@ -2,16 +2,16 @@ var ARRAY = 0, BITFIELD = 1, RUN = 2
 var count = require('./lib/count.js')
 var TinyBox = require('tinybox')
 
-module.exports = Roaring
+module.exports = Bitfield
 
-function Roaring (storage) {
-  if (!(this instanceof Roaring)) return new Roaring(storage)
+function Bitfield (storage) {
+  if (!(this instanceof Bitfield)) return new Bitfield(storage)
   this._db = new TinyBox(storage)
   this._inserts = {}
   this._deletes = {}
 }
 
-Roaring.prototype.add = function (x) {
+Bitfield.prototype.add = function (x) {
   var xh = x >> 16
   var xl = x & 0xffff
   if (!this._inserts.hasOwnProperty(xh)) {
@@ -21,10 +21,10 @@ Roaring.prototype.add = function (x) {
   }
 }
 
-Roaring.prototype.delete = function (x) {
+Bitfield.prototype.delete = function (x) {
 }
 
-Roaring.prototype.has = function (x, cb) {
+Bitfield.prototype.has = function (x, cb) {
   var xh = x >> 16
   var xl = x & 0xffff
   this._db.get(String(xh), function (err, node) {
@@ -72,28 +72,28 @@ Roaring.prototype.has = function (x, cb) {
   })
 }
 
-Roaring.prototype.pred =
-Roaring.prototype.predecessor = function (x) {
+Bitfield.prototype.pred =
+Bitfield.prototype.predecessor = function (x) {
   return this.select(this.rank(x)-1)
 }
 
-Roaring.prototype.succ =
-Roaring.prototype.successor = function (x) {
+Bitfield.prototype.succ =
+Bitfield.prototype.successor = function (x) {
   return this.select(this.rank(x))
 }
 
-Roaring.prototype.rank = function (x) {
+Bitfield.prototype.rank = function (x) {
   // number of elements < x
   var xh = x >> 16
   var xl = x & 0xffff
 }
 
-Roaring.prototype.select = function (i) {
+Bitfield.prototype.select = function (i) {
   // return x where rank(x) = i
   return this.key[this.index[i]]
 }
 
-Roaring.prototype.flush = function (cb) {
+Bitfield.prototype.flush = function (cb) {
   var self = this
   var errored = false
   var ikeys = Object.keys(this._inserts)
@@ -118,7 +118,7 @@ Roaring.prototype.flush = function (cb) {
   }
 }
 
-Roaring.prototype._merge = function (key, set, cb) {
+Bitfield.prototype._merge = function (key, set, cb) {
   var self = this
   self._db.get(key, function (err, node) {
     if (err) {
