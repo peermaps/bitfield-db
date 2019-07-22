@@ -1,13 +1,13 @@
-# roaring-set-store
+# bitfield-db
 
-pure js dynamic bitfield implementation based on the [roaring paper][]
-(roaring+run)
+bitfield database with rank+select over persistent storage
+
+based on [roaring+run][] and [fenwick trees][]
 
 [roaring paper]: https://arxiv.org/pdf/1603.06549.pdf
+[fenwick trees]: https://en.wikipedia.org/wiki/Fenwick_tree
 
-# example
+# status
 
-``` js
-```
+in development
 
-# api
