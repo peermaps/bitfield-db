@@ -84,6 +84,8 @@ Roaring.prototype.successor = function (x) {
 
 Roaring.prototype.rank = function (x) {
   // number of elements < x
+  var xh = x >> 16
+  var xl = x & 0xffff
 }
 
 Roaring.prototype.select = function (i) {
@@ -153,11 +155,17 @@ Roaring.prototype._merge = function (key, set, cb) {
       writeIntoBitfieldData(set, node.value)
       self._db.put(key, node.value)
       cb()
-    } else if (node.value[0] === RUN) { // run -> run
+    } else if (node.value[0] === RUN) { // run -> array | bitfield | run
       set = set.concat(parseRuns(node.value))
       set.sort(cmp)
       var nRuns = count.setRuns(set)
-      self._db.put(key, buildRun(set, nRuns))
+      if (nRuns*4 < set.length*2) {
+        self._db.put(key, buildRun(set, nRuns)) // build run
+      } else if (set.length < 4096) {
+        self._db.put(key, buildArray(set)) // build array
+      } else {
+        self._db.put(key, buildArray(set)) // build array
+      }
       cb()
     }
   })
