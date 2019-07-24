@@ -8,13 +8,18 @@ var nextTick = process.nextTick
 
 module.exports = Bitfield
 
-function Bitfield (storage) {
-  if (!(this instanceof Bitfield)) return new Bitfield(storage)
+function Bitfield (storage, opts) {
+  if (!(this instanceof Bitfield)) return new Bitfield(storage, opts)
+  if (!opts) opts = {}
   this._db = new TinyBox(storage)
   this._inserts = {}
   this._deletes = {}
   this._blockSize = 8192
-  this._mtree = new MTree({ blockSize: this._blockSize, length: 65536 })
+  this._length = Math.pow(2, opts.bits || 32)
+  this._mtree = new MTree({
+    blockSize: this._blockSize,
+    length: 0xffff
+  })
   this._loadingFTree = {}
 }
 
@@ -80,20 +85,34 @@ Bitfield.prototype.has = function (x, cb) {
 }
 
 Bitfield.prototype.pred =
-Bitfield.prototype.predecessor = function (x) {
-  return this.select(this.rank(x)-1)
+Bitfield.prototype.predecessor = function (x, cb) {
+  var self = this
+  self.rank(x, function (err, res) {
+    console.log(`rank(${x}) = ${res}`)
+    if (err) cb(err)
+    else self.select(res-1, cb)
+  })
 }
 
 Bitfield.prototype.succ =
-Bitfield.prototype.successor = function (x) {
-  return this.select(this.rank(x))
+Bitfield.prototype.successor = function (x, cb) {
+  var self = this
+  self.rank(x+1, function (err, res) {
+    if (err) cb(err)
+    else self.select(res, cb)
+  })
 }
 
 Bitfield.prototype.rank = function (x, cb) {
   // number of elements < x
   var self = this
-  var xh = x >> 16
-  var xl = x & 0xffff
+  if (x <= 0x7fffffff) { // < 2**31, can do 32-bit bitwise math:
+    var xh = x >> 16
+    var xl = x & 0xffff
+  } else { // too big for 32-bit bitwise math
+    var xh = Math.floor(x / 0xffff)
+    var xl = x % 0xffff
+  }
   var i = Math.floor(xh / self._blockSize)
   var pending = 1
   for (var j = 0; j <= i; j++) {
@@ -117,9 +136,23 @@ Bitfield.prototype.rank = function (x, cb) {
   }
 }
 
-Bitfield.prototype.select = function (i) {
+Bitfield.prototype.select = function (i, cb) {
   // return x where rank(x) = i
-  return this.key[this.index[i]]
+  var self = this
+  var x0 = 0, x1 = self._length
+  ;(function next () {
+    if (x0 >= x1) return cb(null, x0-1)
+    var mid = Math.floor((x0 + x1) * 0.5)
+    self.rank(mid, function (err, res) {
+      if (err) return cb(err)
+      if (i < res) {
+        x1 = mid
+      } else {
+        x0 = mid + 1
+      }
+      next()
+    })
+  })()
 }
 
 Bitfield.prototype.flush = function (cb) {
@@ -262,7 +295,8 @@ Bitfield.prototype._merge = function (key, set, cb) {
 Bitfield.prototype._loadFTree = function (key, cb) {
   var self = this
   if (self._mtree.chunks.hasOwnProperty(key)) {
-    return nextTick(cb)
+    // allowed to zalgo for perf boost:
+    return cb()
   }
   if (self._loadingFTree[key]) return self._loadingFTree[key].push(cb)
   self._loadingFTree[key] = []
