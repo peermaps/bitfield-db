@@ -1,6 +1,9 @@
 var ARRAY = 0, BITFIELD = 1, RUN = 2
+var FTREE = 'f!'
 var count = require('./lib/count.js')
+var MTree = require('./lib/mtree.js')
 var TinyBox = require('tinybox')
+var nextTick = process.nextTick
 
 module.exports = Bitfield
 
@@ -9,6 +12,9 @@ function Bitfield (storage) {
   this._db = new TinyBox(storage)
   this._inserts = {}
   this._deletes = {}
+  this._blockSize = 8192
+  this._mtree = new MTree({ blockSize: this._blockSize, length: 65536 })
+  this._loadingFTree = {}
 }
 
 Bitfield.prototype.add = function (x) {
@@ -82,10 +88,32 @@ Bitfield.prototype.successor = function (x) {
   return this.select(this.rank(x))
 }
 
-Bitfield.prototype.rank = function (x) {
+Bitfield.prototype.rank = function (x, cb) {
   // number of elements < x
+  var self = this
   var xh = x >> 16
   var xl = x & 0xffff
+  var i = Math.floor(xh / self._blockSize)
+  var pending = 1
+  for (var j = 0; j <= i; j++) {
+    pending++
+    self._loadFTree(j, function (err) {
+      if (err) cb(err)
+      else if (--pending === 0) done()
+    })
+  }
+  if (--pending === 0) done()
+  function done () {
+    self._db.get(String(xh), function (err, node) {
+      if (err) return cb(err)
+      var pre = xh-1 >= 0 ? self._mtree.rank(xh-1) : 0
+      if (!node || !node.value) {
+        cb(null, pre)
+      } else {
+        cb(null, pre + rank(node.value,xl))
+      }
+    })
+  }
 }
 
 Bitfield.prototype.select = function (i) {
@@ -120,6 +148,8 @@ Bitfield.prototype.flush = function (cb) {
 
 Bitfield.prototype._merge = function (key, set, cb) {
   var self = this
+  var fkey = FTREE + key
+  var ikey = Number (key)
   self._db.get(key, function (err, node) {
     if (err) {
       cb(err)
@@ -128,47 +158,126 @@ Bitfield.prototype._merge = function (key, set, cb) {
       var nRuns = count.setRuns(set)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, nRuns))
+        self._loadFTree(key, function (err) {
+          if (err) return cb(err)
+          self._mtree.add(ikey, nRuns)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       } else {
         self._db.put(key, buildArray(set))
+        self._loadFTree(key, function (err) {
+          if (err) return cb(err)
+          self._mtree.add(ikey, set.length)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       }
-      cb()
     } else if (!node) { // bitfield or run
       set.sort(cmp)
       var nRuns = count.setRuns(set)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, nRuns))
+        self._loadFTree(key, function (err) {
+          if (err) return cb(err)
+          self._mtree.add(ikey, nRuns)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       } else {
         self._db.put(key, buildBitfield(set))
+        self._loadFTree(key, function (err) {
+          if (err) return cb(err)
+          self._mtree.add(ikey, set.length)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       }
-      cb()
     } else if (node.value[0] === ARRAY
     && (node.value.length-1)/2 + set.length < 4096) { // array -> array
+      var prevSize = (node.value.length-1)/2
       expandSetWithArrayData(set, node.value)
       set.sort(cmp)
       self._db.put(key, buildArray(set))
-      cb()
+      self._loadFTree(key, function (err) {
+        if (err) return cb(err)
+        self._mtree.add(ikey, set.length - (node.value.length-1)/2)
+        self._db.put(fkey, self._mtree.chunks[ikey])
+        cb()
+      })
     } else if (node.value[0] === ARRAY) { // array -> bitfield
       expandSetWithArrayData(set, node.value)
       self._db.put(key, buildBitfield(set))
-      cb()
+      self._loadFTree(key, function (err) {
+        if (err) cb(err)
+        self._mtree.add(ikey, set.length - (node.value.length-1)/2)
+        self._db.put(fkey, self._mtree.chunks[ikey])
+        cb()
+      })
     } else if (node.value[0] === BITFIELD) { // bitfield -> bitfield
+      var added = set.length
       writeIntoBitfieldData(set, node.value)
       self._db.put(key, node.value)
-      cb()
+      self._loadFTree(key, function (err) {
+        if (err) cb(err)
+        self._mtree.add(ikey, added)
+        self._db.put(fkey, self._mtree.chunks[ikey])
+        cb()
+      })
     } else if (node.value[0] === RUN) { // run -> array | bitfield | run
+      var added = set.length
       set = set.concat(parseRuns(node.value))
       set.sort(cmp)
       var nRuns = count.setRuns(set)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, nRuns)) // build run
+        self._loadFTree(key, function (err) {
+          if (err) cb(err)
+          self._mtree.add(ikey, added)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       } else if (set.length < 4096) {
         self._db.put(key, buildArray(set)) // build array
+        self._loadFTree(key, function (err) {
+          if (err) cb(err)
+          self._mtree.add(ikey, added)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       } else {
         self._db.put(key, buildArray(set)) // build array
+        self._loadFTree(key, function (err) {
+          if (err) cb(err)
+          self._mtree.add(ikey, added)
+          self._db.put(fkey, self._mtree.chunks[ikey])
+          cb()
+        })
       }
-      cb()
     }
   })
+}
+
+Bitfield.prototype._loadFTree = function (key, cb) {
+  var self = this
+  if (self._mtree.chunks.hasOwnProperty(key)) {
+    return nextTick(cb)
+  }
+  if (self._loadingFTree[key]) return self._loadingFTree[key].push(cb)
+  self._loadingFTree[key] = []
+  self._db.get(FTREE + key, function (err, buf) {
+    if (err) return done(err)
+    if (buf) {
+      self._mtree.insertData(key, new Uint16Array(buf.buffer, 0, buf.length))
+    }
+    done(null)
+  })
+  function done (err) {
+    var cbs = self._loadingFTree[key]
+    self._loadingFTree[key] = null
+    for (var i = 0; i < cbs.length; i++) cbs[i](err)
+    cb(err)
+  }
 }
 
 function cmp (a, b) { return a < b ? -1 : +1 }
@@ -232,4 +341,52 @@ function parseRuns (buf) {
     for (var j = start; j < end; j++) set.push(j)
   }
   return set
+}
+
+function rank (buf, x) {
+  if (buf[0] === ARRAY) {
+    var len = (buf.length-1)/2
+    var start = 0, end = len, pk = -1
+    while (true) {
+      var k = Math.floor((start+end)/2)
+      var y = buf.readUInt16BE(1+k*2)
+      if (x === y) return k
+      if (pk === k) return end
+      pk = k
+      if (x < y) {
+        end = k
+      } if (x > y) {
+        start = k
+      }
+    }
+  } else if (buf[0] === BITFIELD) {
+    var len = (buf.length-1)/2
+    var sum = 0
+    for (var i = 0; i < x; i++) {
+      sum += countByteBits(buf[i])
+    }
+    return sum
+  } else if (buf[0] === RUN) {
+    var sum = 0
+    for (var i = 1; i < buf.length; i+=4) {
+      var start = buf.readUInt16BE(i+0)
+      var end = buf.readUInt16BE(i+2)
+      if (x < start) {
+        break
+      } else if (x >= end) {
+        sum += end - start
+      } else {
+        sum += end - x
+        break
+      }
+    }
+    return sum
+  } else {
+    throw new Error('unhandled node type')
+  }
+}
+
+function countByteBits (x) {
+  return ((x>>0)&1) + ((x>>1)&1) + ((x>>2)&1) + ((x>>3)&1)
+    + ((x>>4)&1) + ((x>>5)&1) + ((x>>6)&1) + ((x>>7)&1)
 }
