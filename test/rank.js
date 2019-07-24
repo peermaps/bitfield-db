@@ -120,3 +120,37 @@ test('single bitfield rank', function (t) {
     })(i)
   })
 })
+
+test('multi bitfield rank', function (t) {
+  var offsets = [5000,150000,600000,4500000,6000000]
+  t.plan(10021*2*offsets.length+1)
+  var rset = new RSet(ram())
+  var set = new Set
+  var expected = {}
+  var sum = 0
+  offsets.forEach(offset => {
+    for (var i = -10; i < 0; i++) {
+      expected[offset+i] = sum
+    }
+    for (var i = 0; i < 10000; i+=2) {
+      set.add(offset+i)
+      expected[offset+i+0] = sum
+      expected[offset+i+1] = ++sum
+    }
+    for (var i = 0; i <= 10; i++) {
+      expected[offset+10000+i] = sum
+    }
+  })
+  set.forEach(x => rset.add(x))
+  rset.flush(function (err) {
+    t.ifError(err)
+    offsets.forEach(offset => {
+      for (var i = offset-10; i <= offset+10010; i++) (function (i) {
+        rset.rank(i, function (err, res) {
+          t.ifError(err)
+          t.equal(res, expected[i])
+        })
+      })(i)
+    })
+  })
+})
