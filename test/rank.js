@@ -2,7 +2,7 @@ var RSet = require('../')
 var ram = require('random-access-memory')
 var test = require('tape')
 
-test('single node array rank', function (t) {
+test('single array rank', function (t) {
   t.plan(45)
   var rset = new RSet(ram())
   var set = [5,10,15,20,23,24,26,27]
@@ -43,7 +43,7 @@ test('single node array rank', function (t) {
   })
 })
 
-test('multi node array rank', function (t) {
+test('multi array rank', function (t) {
   t.plan(65)
   var rset = new RSet(ram())
   var set = [
@@ -95,5 +95,28 @@ test('multi node array rank', function (t) {
           `rank(${n}) = ${res} (expected ${expected[n]})`)
       })
     })
+  })
+})
+
+test('single bitfield rank', function (t) {
+  t.plan(2**16*2+1)
+  var rset = new RSet(ram())
+  var set = new Set
+  var rank = []
+  var sum = 0
+  for (var i = 0; i < 2**16; i+=2) {
+    set.add(i)
+    rank[i+0] = sum
+    rank[i+1] = ++sum
+  }
+  set.forEach(x => rset.add(x))
+  rset.flush(function (err) {
+    t.ifError(err)
+    for (var i = 0; i < 2**16; i++) (function (i) {
+      rset.rank(i, function (err, res) {
+        t.ifError(err)
+        t.equal(res, rank[i], `rank(${i})`)
+      })
+    })(i)
   })
 })
