@@ -24,8 +24,13 @@ function Bitfield (storage, opts) {
 }
 
 Bitfield.prototype.add = function (x) {
-  var xh = x >> 16
-  var xl = x & 0xffff
+  if (x <= 0x7fffffff) { // < 2**31, can do 32-bit bitwise math:
+    var xh = x >> 16
+    var xl = x & 0xffff
+  } else { // too big for 32-bit bitwise math
+    var xh = Math.floor(x / 0xffff)
+    var xl = x % 0xffff
+  }
   if (!this._inserts.hasOwnProperty(xh)) {
     this._inserts[xh] = [xl]
   } else {
@@ -37,8 +42,13 @@ Bitfield.prototype.delete = function (x) {
 }
 
 Bitfield.prototype.has = function (x, cb) {
-  var xh = x >> 16
-  var xl = x & 0xffff
+  if (x <= 0x7fffffff) { // < 2**31, can do 32-bit bitwise math:
+    var xh = x >> 16
+    var xl = x & 0xffff
+  } else { // too big for 32-bit bitwise math
+    var xh = Math.floor(x / 0xffff)
+    var xl = x % 0xffff
+  }
   this._db.get(String(xh), function (err, node) {
     if (err) return cb(err)
     if (!node || node.value.length === 0) return cb(null, false)
@@ -88,7 +98,6 @@ Bitfield.prototype.pred =
 Bitfield.prototype.predecessor = function (x, cb) {
   var self = this
   self.rank(x, function (err, res) {
-    console.log(`rank(${x}) = ${res}`)
     if (err) cb(err)
     else self.select(res-1, cb)
   })
@@ -183,7 +192,7 @@ Bitfield.prototype.flush = function (cb) {
 Bitfield.prototype._merge = function (key, set, cb) {
   var self = this
   var fkey = FTREE + key
-  var ikey = Number (key)
+  var ikey = Number(key)
   self._db.get(key, function (err, node) {
     if (err) {
       cb(err)
@@ -194,8 +203,8 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._db.put(key, buildRun(set, nRuns))
         self._loadFTree(key, function (err) {
           if (err) return cb(err)
-          self._mtree.add(ikey, nRuns)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._mtree.add(ikey, set.length)
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       } else {
@@ -203,7 +212,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._loadFTree(key, function (err) {
           if (err) return cb(err)
           self._mtree.add(ikey, set.length)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       }
@@ -214,8 +223,8 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._db.put(key, buildRun(set, nRuns))
         self._loadFTree(key, function (err) {
           if (err) return cb(err)
-          self._mtree.add(ikey, nRuns)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._mtree.add(ikey, set.length)
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       } else {
@@ -223,7 +232,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._loadFTree(key, function (err) {
           if (err) return cb(err)
           self._mtree.add(ikey, set.length)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       }
@@ -236,7 +245,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
       self._loadFTree(key, function (err) {
         if (err) return cb(err)
         self._mtree.add(ikey, set.length - (node.value.length-1)/2)
-        self._db.put(fkey, self._mtree.chunks[ikey])
+        self._db.put(fkey, self._mtree.chunks[key])
         cb()
       })
     } else if (node.value[0] === ARRAY) { // array -> bitfield
@@ -245,7 +254,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
       self._loadFTree(key, function (err) {
         if (err) cb(err)
         self._mtree.add(ikey, set.length - (node.value.length-1)/2)
-        self._db.put(fkey, self._mtree.chunks[ikey])
+        self._db.put(fkey, self._mtree.chunks[key])
         cb()
       })
     } else if (node.value[0] === BITFIELD) { // bitfield -> bitfield
@@ -255,7 +264,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
       self._loadFTree(key, function (err) {
         if (err) cb(err)
         self._mtree.add(ikey, added)
-        self._db.put(fkey, self._mtree.chunks[ikey])
+        self._db.put(fkey, self._mtree.chunks[key])
         cb()
       })
     } else if (node.value[0] === RUN) { // run -> array | bitfield | run
@@ -268,7 +277,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._loadFTree(key, function (err) {
           if (err) cb(err)
           self._mtree.add(ikey, added)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       } else if (set.length < 4096) {
@@ -276,7 +285,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._loadFTree(key, function (err) {
           if (err) cb(err)
           self._mtree.add(ikey, added)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       } else {
@@ -284,7 +293,7 @@ Bitfield.prototype._merge = function (key, set, cb) {
         self._loadFTree(key, function (err) {
           if (err) cb(err)
           self._mtree.add(ikey, added)
-          self._db.put(fkey, self._mtree.chunks[ikey])
+          self._db.put(fkey, self._mtree.chunks[key])
           cb()
         })
       }
