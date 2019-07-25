@@ -15,8 +15,8 @@ test('single array select', function (t) {
     5: 24,
     6: 26,
     7: 27,
-    8: 4294967295,
-    9: 4294967295 // could make this -1?
+    8: -1,
+    9: -1
   }
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -51,7 +51,7 @@ test('multi array select', function (t) {
     9: 16000,
     10: 17000,
     11: 500000,
-    12: 4294967295
+    12: -1
   }
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -77,7 +77,7 @@ test('single bitfield select', function (t) {
     expected[++sum] = i+1
   }
   for (var i = 2**15; i < 2**16; i++) {
-    expected[i] = 4294967295
+    expected[i] = -1
   }
   set.forEach(x => rset.add(x))
   rset.flush(function (err) {
@@ -121,7 +121,7 @@ test('several runs with updates', function (t) {
     expected[sum++] = i
   }
   for (var i = sum; i < 200; i++) {
-    expected[i] = 4294967295
+    expected[i] = -1
   }
   rset.flush(function (err) {
     t.ifError(err)

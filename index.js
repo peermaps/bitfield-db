@@ -94,18 +94,22 @@ Bitfield.prototype.has = function (x, cb) {
   })
 }
 
+Bitfield.prototype.prev =
 Bitfield.prototype.pred =
 Bitfield.prototype.predecessor = function (x, cb) {
   var self = this
+  if (typeof x !== 'number') x = Number(x)
   self.rank(x, function (err, res) {
     if (err) cb(err)
     else self.select(res-1, cb)
   })
 }
 
+Bitfield.prototype.next =
 Bitfield.prototype.succ =
 Bitfield.prototype.successor = function (x, cb) {
   var self = this
+  if (typeof x !== 'number') x = Number(x)
   self.rank(x+1, function (err, res) {
     if (err) cb(err)
     else self.select(res, cb)
@@ -150,6 +154,7 @@ Bitfield.prototype.select = function (i, cb) {
   var self = this
   var x0 = 0, x1 = self._length
   ;(function next () {
+    if (x0 === self._length) return cb(null, -1)
     if (x0 >= x1) return cb(null, x0-1)
     var mid = Math.floor((x0 + x1) * 0.5)
     self.rank(mid, function (err, res) {
