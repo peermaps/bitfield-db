@@ -46,7 +46,7 @@ test('single small array succ/pred', function (t) {
   })
 })
 
-test.only('array+bitfield+run succ/pred', function (t) {
+test('array+bitfield+run succ/pred', function (t) {
   t.plan(23)
   var rset = new RSet(ram())
   var set = new Set([5,10,15,20,23,24,26,27]) // array in block 0

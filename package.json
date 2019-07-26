@@ -8,5 +8,8 @@
   },
   "scripts": {
     "test": "tape test/*.js"
+  },
+  "dependencies": {
+    "uniq": "^1.0.1"
   }
 }
