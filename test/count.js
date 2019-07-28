@@ -2,9 +2,16 @@ var test = require('tape')
 var count = require('../lib/count.js')
 
 test('set count runs', function (t) {
-  t.equal(count.setRuns([3,4,5,7,9,10]), 3)
-  t.equal(count.setRuns([1,2,3,4,5,6,7,8,9,10]), 1)
-  t.equal(count.setRuns([3,4,5,6,8,9,10]), 2)
+  t.equal(count.setRuns([3,4,5,7,9,10],[]), 3)
+  t.equal(count.setRuns([1,2,3,4,5,6,7,8,9,10],[]), 1)
+  t.equal(count.setRuns([3,4,5,6,8,9,10],[]), 2)
+  t.end()
+})
+
+test('set count runs with deletes', function (t) {
+  t.equal(count.setRuns([1,2,3,4,5,6,7,9,10,11],[1,2,6,11]), 3)
+  t.equal(count.setRuns([1,2,3,4,5,6,7,8,9,10,11],[9,10]), 2)
+  t.equal(count.setRuns([3,4,5,6,8,9,10],[10]), 2)
   t.end()
 })
 
