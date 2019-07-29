@@ -118,7 +118,7 @@ Bitfield.prototype.rank = function (x, cb) {
   var self = this
   var xh = Math.floor(x / 0xffff)
   var xl = x % 0xffff
-  var i = Math.floor(xh / self._blockSize)
+  var i = self._mtree.getKey(xh)
   var pending = 1
   for (var j = 0; j <= i; j++) {
     pending++
@@ -191,8 +191,8 @@ Bitfield.prototype.flush = function (cb) {
 
 Bitfield.prototype._merge = function (key, set, delSet, cb) {
   var self = this
-  var fkey = FTREE + key
   var ikey = Number(key)
+  var bkey = self._mtree.getKey(ikey)
   self._db.get(key, function (err, node) {
     if (err) {
       cb(err)
@@ -202,14 +202,14 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
       var delta = count.set(set, delSet)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, delSet, nRuns))
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
         })
       } else {
         self._db.put(key, buildArray(set, delSet))
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
@@ -221,14 +221,14 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
       var delta = count.set(set, delSet)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, delSet, nRuns))
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
         })
       } else {
         self._db.put(key, buildBitfield(set, delSet))
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
@@ -241,7 +241,7 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
       set.sort(cmp)
       var delta = count.set(set, delSet) - prevSize
       self._db.put(key, buildArray(set, delSet))
-      self._loadFTree(key, function (err) {
+      self._loadFTree(bkey, function (err) {
         if (err) return cb(err)
         self._addPut(ikey, delta)
         cb()
@@ -251,7 +251,7 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
       expandSetWithArrayData(set, delSet, node.value)
       var delta = count.set(set, delSet) - prevSize
       self._db.put(key, buildBitfield(set, delSet))
-      self._loadFTree(key, function (err) {
+      self._loadFTree(bkey, function (err) {
         if (err) return cb(err)
         self._addPut(ikey, delta)
         cb()
@@ -259,7 +259,7 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
     } else if (node.value[0] === BITFIELD) { // bitfield -> bitfield
       var delta = writeIntoBitfieldData(set, delSet, node.value)
       self._db.put(key, node.value)
-      self._loadFTree(key, function (err) {
+      self._loadFTree(bkey, function (err) {
         if (err) return cb(err)
         self._addPut(ikey, delta)
         cb()
@@ -272,21 +272,21 @@ Bitfield.prototype._merge = function (key, set, delSet, cb) {
       var nRuns = count.setRuns(set, delSet)
       if (nRuns*4 < set.length*2) {
         self._db.put(key, buildRun(set, delSet, nRuns)) // build run
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
         })
       } else if (set.length < 4096) {
         self._db.put(key, buildArray(set, delSet)) // build array
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
         })
       } else {
         self._db.put(key, buildBitfield(set, delSet)) // build bitfield
-        self._loadFTree(key, function (err) {
+        self._loadFTree(bkey, function (err) {
           if (err) return cb(err)
           self._addPut(ikey, delta)
           cb()
@@ -304,10 +304,15 @@ Bitfield.prototype._loadFTree = function (key, cb) {
   }
   if (self._loadingFTree[key]) return self._loadingFTree[key].push(cb)
   self._loadingFTree[key] = []
-  self._db.get(FTREE + key, function (err, buf) {
+  self._db.get(FTREE + key, function (err, node) {
     if (err) return done(err)
-    if (buf) {
-      self._mtree.insertData(key, new Uint16Array(buf.buffer, 0, buf.length))
+    if (node && node.value) {
+      var buf = node.value
+      self._mtree.insertData(key, new Uint16Array(
+        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      ))
+    } else {
+      self._mtree.chunks[key] = null
     }
     done(null)
   })
@@ -321,12 +326,13 @@ Bitfield.prototype._loadFTree = function (key, cb) {
 
 Bitfield.prototype._addPut = function (ikey, x) {
   this._mtree.add(ikey, x)
-  this._db.put(FTREE + this._mtree.getKey(ikey), this._mtree.getChunk(ikey))
+  var data = this._mtree.getChunk(ikey).data
+  this._db.put(FTREE + this._mtree.getKey(ikey),
+    Buffer.from(data.buffer, data.byteOffset, data.byteLength))
 }
 
 function cmp (a, b) { return a < b ? -1 : +1 }
 
-// TODO
 function buildArray (set, delSet) { // set assumed to be sorted
   var buf = Buffer.alloc(1 + set.length*2)
   buf[0] = ARRAY
@@ -370,7 +376,7 @@ function buildRun (set, delSet, nRuns) { // set assumed to be sorted
 function expandSetWithArrayData (set, delSet, buf) {
   for (var i = 1; i < buf.length; i+=2) {
     var x = buf.readUInt16BE(i)
-    if (!delSet.includes(x)) set.push(x)
+    if (!delSet.includes(x) && !set.includes(x)) set.push(x)
   }
 }
 
