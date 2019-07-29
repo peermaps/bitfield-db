@@ -1,6 +1,6 @@
 {
   "name": "bitfield-db",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "bitfield database with rank+select over persistent storage",
   "license": "Parity-6.0.0",
   "keywords": [
