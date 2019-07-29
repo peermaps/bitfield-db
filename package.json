@@ -3,6 +3,16 @@
   "version": "1.0.0",
   "description": "bitfield database with rank+select over persistent storage",
   "license": "Parity-6.0.0",
+  "keywords": [
+    "rank",
+    "select",
+    "roaring",
+    "roaring+run",
+    "bitfield",
+    "set",
+    "database",
+    "random-access"
+  ],
   "dependencies": {
     "uniq": "^1.0.1",
     "tinybox": "~0.0.0"
