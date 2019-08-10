@@ -43,6 +43,33 @@ test('single array rank', function (t) {
   })
 })
 
+test('single array rank 0', function (t) {
+  var expected = {
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4,
+    5: 5, 6: 5, 7: 6, 8: 7, 9: 8,
+    10: 9, 11: 9, 12: 9, 13: 9, 14: 9,
+    15: 9, 16: 9, 17: 10, 18: 11, 19: 12,
+    20: 13, 21: 13, 22: 14, 23: 15, 24: 15,
+    25: 15, 26: 16, 27: 16, 28: 16, 29: 17,
+    30: 18, 31: 19, 32: 20,
+    50: 38, 500: 488, 5000: 4988, 50000: 49988
+  }
+  t.plan(1+2*Object.keys(expected).length)
+  var rset = new RSet(ram())
+  var set = [5,10,11,12,13,14,15,20,23,24,26,27]
+  set.forEach(x => rset.add(x))
+  rset.flush(function (err) {
+    t.ifError(err)
+    Object.keys(expected).forEach(function (n) {
+      rset.rank0(Number(n), function (err, res) {
+        t.ifError(err)
+        t.equal(res, expected[n],
+          `rank0(${n}) = ${res} (expected ${expected[n]})`)
+      })
+    })
+  })
+})
+
 test('multi array rank', function (t) {
   t.plan(65)
   var rset = new RSet(ram())

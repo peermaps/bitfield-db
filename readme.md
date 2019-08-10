@@ -2,7 +2,8 @@
 
 bitfield database with rank+select over persistent storage
 
-based on [roaring+run][] and [fenwick trees][]
+based on [roaring+run][] and [fenwick trees][] with 0 or 1 based numbering as in
+the [louds][] paper
 
 You might want to use a database like this when you have data like an inbox
 and you'd like to sort messages into different categories like "read", "unread",
@@ -15,10 +16,11 @@ adaptors. To use this module in the browser, you can use [random-access-web][].
 
 [roaring+run]: https://arxiv.org/pdf/1603.06549.pdf
 [fenwick trees]: https://en.wikipedia.org/wiki/Fenwick_tree
+[louds]: https://www.cs.le.ac.uk/people/ond1/XMLcomp/confersWEA06_LOUDS.pdf
 [random-access]: https://github.com/random-access-storage/random-access-storage
 [random-access-web]: https://github.com/random-access-storage/random-access-web
 
-# api
+# example
 
 ``` js
 var Bitfield = require('bitfield-db')
@@ -56,6 +58,28 @@ select(5) = 24
 successor(24) = 26
 predecessor(24) = 23
 ```
+
+# one vs zero based numbering
+
+This library supports both one-based and zero-based numbering schemes.
+
+All the methods with a trailing 1 in their name use one-based numbering.
+
+All the methods with a trailing 0 in their name use zero-based numbering.
+
+One-based numbering is the default. Under this scheme, `rank1(x)` counts the
+number of elements contained in the set `< x`. When an element is in the set, it
+is a "one" because the entry for its bitfield (or array or run) is "set" as a
+`1`.
+
+The methods `rank()`, `select()`, `predecessor()`, and `successor()` are aliases
+for the corresponding methods: `rank1()`, `select1()`, `predecessor1()`, and
+`successor1()`.
+
+Under zero-based numbering, `rank0(x)` counts the number of elements
+(non-negative integers) NOT contined in the set which are `< x`. When an element
+is not contained in the set, it is a "zero" because the entry for its bitfield
+(or array or run) is "unset" as a `0`.
 
 # api
 
@@ -123,6 +147,21 @@ Test whether `x` is in the set. `cb(err, exists)` is called with a boolean
 Get the number of elements `i` in the set that are less than `x` as
 `cb(err, i)`.
 
+This corresponds to searching for the number of `1`s `< x` in the bitfield, so
+the alias is called `rank1`.
+
+aliases:
+
+* bf.rank1(x, cb)
+
+## bf.rank0(x, cb)
+
+Get the number of non-negative integer elements `i` NOT in the set that are less
+than `x` as `cb(err, i)`.
+
+This corresponds to searching for the number of `0`s `< x` in the bitfield, so
+this method is called `rank0`.
+
 ## bf.select(i, cb)
 
 Find a value of `x` where `rank(x) = i` as `cb(err, x)`.
@@ -130,14 +169,39 @@ Find a value of `x` where `rank(x) = i` as `cb(err, x)`.
 If there is no element `x` in the set where `rank(x) = i`, you will receive the
 value `-1`.
 
+aliases:
+
+* bf.select1(i, cb)
+
+## bf.select0(i, cb)
+
+Find a value of `x` where `rank0(x) = i` as `cb(err, x)`.
+
+If there is no element `x` in the set where `rank0(x) = i`, you will receive the
+value `-1`. Note that zeros extend unbounded past the largest value in the set
+(the last 1 in the bitfield).
+
 ## bf.predecessor(x, cb)
 
 Return the greatest element `y` in the set where `y < x` as `cb(err, y)`.
 
 aliases:
 
+* bf.predecessor1(x, cb)
 * bf.pred(x, cb)
+* bf.pred1(x, cb)
 * bf.prev(x, cb)
+* bf.prev1(x, cb)
+
+## bf.predecessor0(x, cb)
+
+Return the greatest non-negative integer element `y` NOT in the set
+where `y < x` as `cb(err, y)`.
+
+aliases:
+
+* bf.pred0(x, cb)
+* bf.prev0(x, cb)
 
 ## bf.successor(x, cb)
 
@@ -145,8 +209,21 @@ Return the smallest element `y` in the set where `y > x` as `cb(err, y)`.
 
 aliases:
 
+* bf.successor1(x, cb)
 * bf.succ(x, cb)
+* bf.succ1(x, cb)
 * bf.next(x, cb)
+* bf.next1(x, cb)
+
+## bf.successor0(x, cb)
+
+Return the smallest non-negative integer element `y` NOT in the set
+where `y > x` as `cb(err, y)`.
+
+aliases:
+
+* bf.succ0(x, cb)
+* bf.next0(x, cb)
 
 ## var multi = new MultiBitfield(storage)
 

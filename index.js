@@ -97,28 +97,57 @@ Bitfield.prototype.has = function (x, cb) {
 }
 
 Bitfield.prototype.prev =
+Bitfield.prototype.prev1 =
 Bitfield.prototype.pred =
-Bitfield.prototype.predecessor = function (x, cb) {
+Bitfield.prototype.pred1 =
+Bitfield.prototype.predecessor =
+Bitfield.prototype.predecessor1 = function (x, cb) {
   var self = this
   if (typeof x !== 'number') x = Number(x)
-  self.rank(x, function (err, res) {
+  self.rank1(x, function (err, res) {
     if (err) cb(err)
-    else self.select(res-1, cb)
+    else self.select1(res-1, cb)
+  })
+}
+
+Bitfield.prototype.prev0 =
+Bitfield.prototype.pred0 =
+Bitfield.prototype.predecessor0 = function (x, cb) {
+  var self = this
+  if (typeof x !== 'number') x = Number(x)
+  self.rank0(x, function (err, res) {
+    if (err) cb(err)
+    else self.select0(res-1, cb)
   })
 }
 
 Bitfield.prototype.next =
+Bitfield.prototype.next1 =
 Bitfield.prototype.succ =
-Bitfield.prototype.successor = function (x, cb) {
+Bitfield.prototype.succ1 =
+Bitfield.prototype.successor =
+Bitfield.prototype.successor1 = function (x, cb) {
   var self = this
   if (typeof x !== 'number') x = Number(x)
-  self.rank(x+1, function (err, res) {
+  self.rank1(x+1, function (err, res) {
     if (err) cb(err)
-    else self.select(res, cb)
+    else self.select1(res, cb)
   })
 }
 
-Bitfield.prototype.rank = function (x, cb) {
+Bitfield.prototype.next0 =
+Bitfield.prototype.succ0 =
+Bitfield.prototype.successor0 = function (x, cb) {
+  var self = this
+  if (typeof x !== 'number') x = Number(x)
+  self.rank0(x+1, function (err, res) {
+    if (err) cb(err)
+    else self.select0(res, cb)
+  })
+}
+
+Bitfield.prototype.rank =
+Bitfield.prototype.rank1 = function (x, cb) {
   // number of elements < x
   var self = this
   var xh = Math.floor(x / 0xffff)
@@ -146,24 +175,44 @@ Bitfield.prototype.rank = function (x, cb) {
   }
 }
 
-Bitfield.prototype.select = function (i, cb) {
-  // return x where rank(x) = i
+Bitfield.prototype.rank0 = function (x, cb) {
+  this.rank1(x, function (err, n) {
+    if (err) cb(err)
+    else cb(null, x-n)
+  })
+}
+
+Bitfield.prototype.select =
+Bitfield.prototype.select1 = function (i, cb) {
+  // return x where rank1(x) = i
+  this._select(1, i, cb)
+}
+
+Bitfield.prototype.select0 = function (i, cb) {
+  // return x where rank0(x) = i
+  this._select(0, i, cb)
+}
+
+Bitfield.prototype._select = function (digit, i, cb) {
   var self = this
-  var x0 = 0, x1 = self._length
-  ;(function next () {
+  var x0 = 0, x1 = self._length, mid = 0
+  next()
+  function next () {
     if (x0 === self._length) return cb(null, -1)
     if (x0 >= x1) return cb(null, x0-1)
-    var mid = Math.floor((x0 + x1) * 0.5)
-    self.rank(mid, function (err, res) {
-      if (err) return cb(err)
-      if (i < res) {
-        x1 = mid
-      } else {
-        x0 = mid + 1
-      }
-      next()
-    })
-  })()
+    mid = Math.floor((x0 + x1) * 0.5)
+    if (digit === 0) self.rank0(mid, onrank)
+    else if (digit === 1) self.rank1(mid, onrank)
+  }
+  function onrank (err, res) {
+    if (err) return cb(err)
+    if (i < res) {
+      x1 = mid
+    } else {
+      x0 = mid + 1
+    }
+    next()
+  }
 }
 
 Bitfield.prototype.flush = function (opts, cb) {
