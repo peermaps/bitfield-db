@@ -25,6 +25,8 @@ function Bitfield (storage, opts) {
     blockSize: this._blockSize,
     length: 0xffff
   })
+  this._writeLock = false
+  this._writeQueue = []
   this._loadingFTree = {}
 }
 
@@ -150,6 +152,10 @@ Bitfield.prototype.rank =
 Bitfield.prototype.rank1 = function (x, cb) {
   // number of elements < x
   var self = this
+  if (self._writeLock) {
+    self._writeQueue.push(function () { self.rank1(x, cb) })
+    return
+  }
   var xh = Math.floor(x / 0xffff)
   var xl = x % 0xffff
   var i = self._mtree.getKey(xh)
@@ -195,6 +201,10 @@ Bitfield.prototype.select0 = function (i, cb) {
 
 Bitfield.prototype._select = function (digit, i, cb) {
   var self = this
+  if (self._writeLock) {
+    self._writeQueue.push(function () { self._select(digit, i, cb) })
+    return
+  }
   var x0 = 0, x1 = self._length, mid = 0
   next()
   function next () {
@@ -216,13 +226,18 @@ Bitfield.prototype._select = function (digit, i, cb) {
 }
 
 Bitfield.prototype.flush = function (opts, cb) {
+  var self = this
+  if (self._writeLock) {
+    self._writeQueue.push(function () { self.flush(opts, cb) })
+    return
+  }
+  self._writeLock = true
   if (typeof opts === 'function') {
     cb = opts
     opts = {}
   }
   if (!opts) opts = {}
   if (!cb) cb = noop
-  var self = this
   var errored = false
   var mkeys = {}
   var ikeys = Object.keys(this._inserts)
@@ -245,8 +260,18 @@ Bitfield.prototype.flush = function (opts, cb) {
     if (--pending !== 0) return
     self._inserts = {}
     self._deletes = {}
-    if (opts.sync === false) cb()
-    else self._db.flush(cb)
+    if (opts.sync === false) finish()
+    else self._db.flush(finish)
+  }
+  function finish (err) {
+    self._writeLock = false
+    if (err) return cb(err)
+    var qs = self._writeQueue
+    self._writeQueue = []
+    for (var i = 0; i < qs.length; i++) {
+      qs[i]()
+    }
+    cb()
   }
 }
 
