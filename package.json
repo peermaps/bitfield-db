@@ -1,6 +1,6 @@
 {
   "name": "bitfield-db",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "bitfield database with rank+select over persistent storage",
   "license": "Parity-6.0.0",
   "keywords": [
@@ -14,7 +14,6 @@
     "random-access"
   ],
   "dependencies": {
-    "mutexify": "^1.2.0",
     "tinybox": "~0.0.0",
     "uniq": "^1.0.1"
   },
