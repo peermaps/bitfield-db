@@ -43,15 +43,15 @@ MultiBitfield.prototype.close = function (prefix) {
   }
 }
 
+var flushOpts = { sync: false, _queue: false }
 MultiBitfield.prototype.flush = function (cb) {
   var self = this
   if (!this._root) return nextTick(cb)
-  var opts = { sync: false }
   var pending = 1, finished = false
   for (var i = 0; i < this._dbKeys.length; i++) {
     var key = this._dbKeys[i]
     pending++
-    this._dbs[key].flush(opts, done)
+    this._dbs[key].flush(flushOpts, done)
   }
   done()
   function done (err) {
@@ -60,6 +60,14 @@ MultiBitfield.prototype.flush = function (cb) {
       finished = true
       return cb(err)
     }
-    if (--pending === 0) self._root._db.flush(cb)
+    if (--pending !== 0) return
+    self._root._db.flush(function (err) {
+      if (err) return cb(err)
+      for (var i = 0; i < self._dbKeys.length; i++) {
+        var key = self._dbKeys[i]
+        self._dbs[key]._drainQueue()
+      }
+      cb()
+    })
   }
 }

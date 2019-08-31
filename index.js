@@ -5,6 +5,7 @@ var MTree = require('./lib/mtree.js')
 var rank = require('./lib/rank.js')
 var TinyBox = require('tinybox')
 var uniq = require('uniq')
+var nextTick = process.nextTick
 
 module.exports = Bitfield
 
@@ -260,18 +261,27 @@ Bitfield.prototype.flush = function (opts, cb) {
     if (--pending !== 0) return
     self._inserts = {}
     self._deletes = {}
-    if (opts.sync === false) process.nextTick(finish)
+    if (opts.sync === false) nextTick(finish)
     else self._db.flush(finish)
   }
   function finish (err) {
-    self._writeLock = false
-    if (err) return cb(err)
-    var qs = self._writeQueue
-    self._writeQueue = []
-    for (var i = 0; i < qs.length; i++) {
-      qs[i]()
+    if (err) {
+      self._writeLock = false
+      return cb(err)
+    }
+    if (opts._queue !== false) {
+      self._drainQueue()
     }
     cb()
+  }
+}
+
+Bitfield.prototype._drainQueue = function () {
+  this._writeLock = false
+  var qs = this._writeQueue
+  this._writeQueue = []
+  for (var i = 0; i < qs.length; i++) {
+    qs[i]()
   }
 }
 
