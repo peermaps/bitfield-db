@@ -260,7 +260,7 @@ Bitfield.prototype.flush = function (opts, cb) {
     if (--pending !== 0) return
     self._inserts = {}
     self._deletes = {}
-    if (opts.sync === false) finish()
+    if (opts.sync === false) process.nextTick(finish)
     else self._db.flush(finish)
   }
   function finish (err) {

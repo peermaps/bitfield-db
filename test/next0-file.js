@@ -5,7 +5,7 @@ var tmpfile = require('tmpfile')
 var test = require('tape')
 
 test('next 0 with a file', function (t) {
-  t.plan(30*2+1)
+  t.plan(30*2+5)
   var bf = new BF(raf(tmpfile()))
   var seq = -1
   var results = []
@@ -25,12 +25,19 @@ test('next 0 with a file', function (t) {
       11,12,13,14,15,16,17,18,19,
       20,21,22,23,24,25,26,27,28,29
     ])
-    t.end()
+    bf.rank(30, function (err, res) {
+      t.error(err)
+      t.equal(res, 30)
+    })
+    bf.next0(0, function (err, res) {
+      t.error(err)
+      t.equal(res, 30)
+    })
   }
 })
 
 test('multi next 0 with a file', function (t) {
-  t.plan(30*2+1)
+  t.plan(30*2+5)
   var multi = new Multi(raf(tmpfile()))
   var bf = multi.open('A!')
   var seq = -1
@@ -41,7 +48,7 @@ test('multi next 0 with a file', function (t) {
     bf.add(x)
     multi.flush(function (err) {
       t.error(err)
-      if (x === 29) check()
+      if (x >= 29) check()
       else bf.next0(x, f)
     })
   })
@@ -51,6 +58,13 @@ test('multi next 0 with a file', function (t) {
       11,12,13,14,15,16,17,18,19,
       20,21,22,23,24,25,26,27,28,29
     ])
-    t.end()
+    bf.rank(30, function (err, res) {
+      t.error(err)
+      t.equal(res, 30)
+    })
+    bf.next0(0, function (err, res) {
+      t.error(err)
+      t.equal(res, 30)
+    })
   }
 })

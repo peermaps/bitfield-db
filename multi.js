@@ -44,11 +44,22 @@ MultiBitfield.prototype.close = function (prefix) {
 }
 
 MultiBitfield.prototype.flush = function (cb) {
+  var self = this
   if (!this._root) return nextTick(cb)
   var opts = { sync: false }
+  var pending = 1, finished = false
   for (var i = 0; i < this._dbKeys.length; i++) {
     var key = this._dbKeys[i]
-    this._dbs[key].flush(opts)
+    pending++
+    this._dbs[key].flush(opts, done)
   }
-  this._root._db.flush(cb)
+  done()
+  function done (err) {
+    if (finished) return
+    if (err) {
+      finished = true
+      return cb(err)
+    }
+    if (--pending === 0) self._root._db.flush(cb)
+  }
 }
