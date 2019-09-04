@@ -251,3 +251,5 @@ Flush all of the open databases in a single underlying database flush.
 # license
 
 [license zero parity](https://licensezero.com/licenses/parity)
+and [apache 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt)
+(contributions)
