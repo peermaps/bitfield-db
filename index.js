@@ -60,6 +60,7 @@ Bitfield.prototype.has = function (x, cb) {
     var buf = node.value
     if (buf[0] === ARRAY) { // binary search
       var len = (buf.length-1)/2
+      if (len === 0) return cb(null, false)
       var start = 0, end = len, pk = -1
       while (true) {
         var k = Math.floor((start+end)/2)
